@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Excel and temporary output files
+*.xlsx
+*.xls
+temp/
+tmp/
+results/
+outputs/
+experiments/
+
+# Temporary binary data
+*.bin
+*.dat
