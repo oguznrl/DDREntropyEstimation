@@ -72,25 +72,49 @@ python ddr_entropy_gen_method.py [arguments]
 | `-n`, `--iterations` | **Iterations** | Number of folding iterations to evaluate (e.g. `5` or `8`). |
 | `-o`, `--output-excel` | **Output Excel** | Path to save the formatted result excel. If the file exists, the sheet is added/updated. |
 | `--no-interleave` | **Disable Interleaving** | *(Optional)* If set, disables Phase 3 matrix interleaving and uses simple sequential concatenation. |
+| `--full-dataset` | **Full Dataset Mode** | *(Optional)* Evaluates all images in the folder without sample limitation. By default, the script processes a bounded subset to enable faster evaluation and avoid long testing times. |
 
 ---
 
-## 4. Usage Example
-To run validation on RP5 1024x1024 windows for 5 iterations:
+## 4. Execution Modes (Default vs. Full Dataset)
+
+Running full NIST SP 800-22 and NIST SP 800-90B evaluation suites over very large image datasets requires significant computational time. To provide flexibility, the pipeline supports two execution modes:
+
+1. **Default Mode (Fast Evaluation):**
+   - Evaluates a bounded subset of images to enable faster results and avoid extensive test durations.
+   - *Note:* Because NIST randomness tests and entropy estimators depend directly on the total input bitstream length, numerical p-values and entropy estimations obtained from this mode will naturally differ from an evaluation run over the entire dataset.
+
+2. **Full Dataset Mode (`--full-dataset`):**
+   - Evaluates all available images in the specified directory without any sample limit.
+   - Intended for exhaustive statistical verification over the entire dataset.
+
+---
+
+## 5. Usage Example
+To run the fast evaluation mode on ZYNQ 1024x1024:
 ```bash
 python ddr_entropy_gen_method.py \
-  -i "/path/to/rp5_1024" \
-  -f "/path/to/entropy_features_by_window.csv" \
-  -d "/path/to/rp5_duplicates.txt" \
-  -s "/path/to/sts" \
-  -e "/path/to/ea_non_iid_native" \
+  -i "path/to/Filtreden_Gecen_Gorseller/zynq/1024x1024" \
+  -s "tools/sts_dir/sts" \
+  -e "tools/ea_dir/cpp/ea_non_iid" \
   -n 5 \
-  -o "/path/to/rp5_validation_results.xlsx"
+  -o "zynq_1024_fast_results.xlsx"
+```
+
+To run exhaustive evaluation on all images in the directory:
+```bash
+python ddr_entropy_gen_method.py \
+  -i "path/to/Filtreden_Gecen_Gorseller/zynq/1024x1024" \
+  -s "tools/sts_dir/sts" \
+  -e "tools/ea_dir/cpp/ea_non_iid" \
+  -n 5 \
+  -o "zynq_1024_full_results.xlsx" \
+  --full-dataset
 ```
 
 ---
 
-## 5. Output Excel Formatting
+## 6. Output Excel Formatting
 The script automatically detects the image resolution (e.g., `1024x1024`) and creates a sheet named `{res}x{res}` inside the Excel file. If the file already exists, it appends/overwrites only that sheet, allowing multiple resolutions to be combined into a single file.
 
 For each iteration, the sheet contains:

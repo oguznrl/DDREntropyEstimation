@@ -25,6 +25,15 @@ DEFAULT_FILTER_RANGES = {
     'image_permutation_entropy': (0.99, 1),
 }
 
+# Standardized 128-Megabit benchmark image limits (matches Table IV in the paper)
+# Used by default for fast, normalized, and reproducible evaluation across resolutions.
+TABLE4_BENCHMARK_LIMITS = {
+    1024: 31,
+    512: 123,
+    256: 490,
+    128: 1960
+}
+
 # Deterministic Miller-Rabin primality test for 32-bit integers (extremely fast!)
 def is_prime(n):
     if n < 2: return False
@@ -444,7 +453,7 @@ def load_duplicates_list(duplicates_file):
                     dup_ids.add(int(match.group()))
     return dup_ids
 
-def run_validation(image_dir, filter_source=None, sts_path="", ea_path="", iterations=5, output_excel="output.xlsx", duplicates_file=None, interleave=True):
+def run_validation(image_dir, filter_source=None, sts_path="", ea_path="", iterations=5, output_excel="output.xlsx", duplicates_file=None, interleave=True, full_dataset=False):
     if not os.path.exists(image_dir):
         print(f"Error: Image directory not found: {image_dir}")
         sys.exit(1)
@@ -502,13 +511,25 @@ def run_validation(image_dir, filter_source=None, sts_path="", ea_path="", itera
         print("Error: No physical png files found matching the passing IDs.")
         sys.exit(1)
         
-    print(f"Found {len(valid_files)} physical PNG files to process.")
+    print(f"Total available valid PNG files in directory: {len(valid_files)}")
     
     first_filepath = os.path.join(image_dir, valid_files[0])
     img = Image.open(first_filepath)
     res_val = img.size[0]
     sheet_title = f"{res_val}x{res_val}"
     print(f"Detected image resolution: {res_val}x{res_val}")
+    
+    # Benchmark / Quick Replication Mode vs. Full Dataset Mode
+    if not full_dataset and res_val in TABLE4_BENCHMARK_LIMITS:
+        limit_val = TABLE4_BENCHMARK_LIMITS[res_val]
+        if len(valid_files) > limit_val:
+            print(f"Running Standard Benchmark Mode: Selected {limit_val} images (128M standardized bitstream).")
+            print(f"(Matches Table IV benchmark in the paper. Use '--full-dataset' to evaluate all {len(valid_files)} images).")
+            valid_files = valid_files[:limit_val]
+        else:
+            print(f"Dataset size ({len(valid_files)}) <= benchmark limit ({limit_val}). Processing all available images.")
+    else:
+        print(f"Full Dataset Mode: Processing all {len(valid_files)} images (exhaustive evaluation).")
     
     print(f"Folding {len(valid_files)} images up to {iterations} iterations...")
     task_args = [(os.path.join(image_dir, f), iterations) for f in valid_files]
@@ -660,6 +681,7 @@ def main():
     parser.add_argument("-n", "--iterations", type=int, required=True, help="Number of folding iterations to run.")
     parser.add_argument("-o", "--output-excel", required=True, help="Output Excel file path.")
     parser.add_argument("--no-interleave", action="store_true", help="Disable Phase 3 bit interleaving (use simple sequential concatenation instead).")
+    parser.add_argument("--full-dataset", action="store_true", help="Evaluate the entire image dataset without benchmark limits. By default, the script evaluates the standardized 128M benchmark subset to reproduce Table IV rapidly and prevent excessive evaluation time.")
     
     args = parser.parse_args()
     run_validation(
@@ -670,7 +692,8 @@ def main():
         iterations=args.iterations,
         output_excel=args.output_excel,
         duplicates_file=args.duplicates_file,
-        interleave=not args.no_interleave
+        interleave=not args.no_interleave,
+        full_dataset=args.full_dataset
     )
 
 if __name__ == '__main__':
