@@ -1,12 +1,42 @@
-# DDR-RAM Entropy Generation & Validation Pipeline
-### Automated NIST SP 800-22 & NIST SP 800-90B Randomness & Entropy Evaluation
+# DDR-RAM Entropy Generation & Evaluation Pipeline
+### Multi-Metric Statistical Filtering & Automated NIST SP 800-22 / SP 800-90B Randomness Evaluation
 
-This directory contains a platform-independent, fully parametric Python script (`ddr_entropy_gen_method.py`) to run and evaluate the **recursive prime-shift folding and interleaving pipeline** on entropy-filtered images and output formatted validation reports into Excel sheets.
+This repository provides an end-to-end, platform-independent pipeline for **entropy-driven DDR-RAM region selection**, recursive prime-shift XOR folding, deterministic interleaving, and rigorous cryptographic randomness verification based on the paper:
+
+> **"Multi-Metric Statistical Filtering for Entropy-Driven DDR-RAM Region Selection"**  
+> *Oğuz Narlı, Mustafa İsmail Bayramoğlu, Meltem Kurt Pehlivanoğlu*
+
+---
+
+## Architecture & Workflow Overview
+
+The framework operates in a streamlined two-step workflow:
+
+```
+[Raw DDR-RAM Window Images (.png)]
+                 │
+                 ▼
+  STEP 1: extract_features.py ────────► Computes 7 statistical randomness metrics per window
+                 │
+                 ▼
+     entropy_features_by_window.csv   (Input table for the 1st filter stage)
+                 │
+                 ▼
+  STEP 2: ddr_entropy_gen_method.py ──► -f entropy_features_by_window.csv
+                 │
+                 ├─ 1. Single-Stage Filtering (Eq. 10)
+                 ├─ 2. Prime Circular Shift & XOR Folding (M iterations)
+                 ├─ 3. Deterministic Matrix Interleaving
+                 └─ 4. Automated NIST SP 800-22 & NIST SP 800-90B Evaluation
+                 │
+                 ▼
+     Formatted Excel Report (.xlsx)
+```
 
 ---
 
 ## 1. Overview of the Shuffling Pipeline (Flowchart Structure)
-The shuffling pipeline implemented in the script directly implements the 3-phase methodology:
+The shuffling pipeline implemented in `ddr_entropy_gen_method.py` directly implements the 3-phase methodology:
 1. **PHASE 1 – Image-Based Entropy Source**:
    - Each input grayscale PNG image is converted into an $L_0$-bit string (row-major order).
    - $N$ images are processed independently.
@@ -28,7 +58,7 @@ The shuffling pipeline implemented in the script directly implements the 3-phase
 ---
 
 ## 2. Requirements & Setup
-The script is designed to be **platform-independent** (works on Windows, Linux, macOS) and has no dependency on heavy math packages like SciPy (uses a pure-python implementation for incomplete gamma functions).
+The scripts are designed to be **platform-independent** (works on Windows, Linux, macOS) and have no dependency on heavy math packages like SciPy (uses a pure-python implementation for incomplete gamma functions).
 
 ### Python Dependencies
 Install the required packages using pip:
@@ -54,8 +84,39 @@ You must have the compiled C++ binary of the NIST SP 800-90B tool (`ea_non_iid` 
 
 ---
 
-## 3. Script Arguments & Parameters
-Run the script using:
+## 3. Step 1: Statistical Feature Extraction (`extract_features.py`)
+
+Before applying the 1st filter, raw DDR-RAM window images are evaluated across 7 multi-metric statistical properties defined in Section IV-B (Eq. 10):
+
+$$F(X) = (B(X) \le 0.2) \land (H(X), H_G(X) \in [0.88, 1.0]) \land (\sigma(X), \sigma_G(X) \in [50, 100]) \land (4 \le SE \le 10) \land (0.99 \le PE \le 1.0)$$
+
+| Metric | Column Name in CSV | Filter Range (Eq. 10) | Description |
+| :--- | :--- | :---: | :--- |
+| **Binary Bias** | `bias` | $\le 0.20$ | Deviation from equal bit probability: $\|n_1/n_b - 0.5\|$ |
+| **Shannon Entropy** | `shannon_entropy` | $[0.88, 1.0]$ | Bit-level uncertainty quantifier |
+| **Block-wise Entropy**| `blockwise_entropy` | $[0.88, 1.0]$ | Average binary Shannon entropy across 16 blocks |
+| **Standard Deviation**| `image_std` | $[50, 100]$ | Pixel intensity dispersion around the mean |
+| **Grouped Std. Dev.** | `image_blockwise_std` | $[50, 100]$ | Average standard deviation across $4 \times 4$ blocks |
+| **Spectral Entropy** | `image_spectral_entropy` | $[4, 10]$ | Normalized 2D Power Spectral Density (PSD) complexity |
+| **Permutation Entropy**| `image_permutation_entropy` | $[0.99, 1.0]$ | Ordinal pattern complexity ($D=3, \tau=1$), normalized |
+
+### Running Feature Extraction:
+`extract_features.py` reads all raw `.png` images in the specified folder and computes the 7 metrics using parallel CPU multiprocessing:
+
+```bash
+python extract_features.py -i "/path/to/raw_window_images" -o "entropy_features_by_window.csv"
+```
+
+#### Arguments:
+- `-i`, `--image-dir`: Directory containing input `.png` images (Required).
+- `-o`, `--output-csv`: Output CSV file path (default: `entropy_features_by_window.csv`).
+- `-w`, `--workers`: Number of parallel CPU worker processes (default: all available cores).
+
+---
+
+## 4. Step 2: Post-Processing & Evaluation Pipeline (`ddr_entropy_gen_method.py`)
+
+Run the main pipeline script using:
 ```bash
 python ddr_entropy_gen_method.py [arguments]
 ```
@@ -65,7 +126,7 @@ python ddr_entropy_gen_method.py [arguments]
 | Flag | Parameter | Description |
 | :--- | :--- | :--- |
 | `-i`, `--image-dir` | **Image Directory** | Folder containing raw `.png` images to be processed. |
-| `-f`, `--filter-source` | **Filter Source** | *(Optional)* Path to the 1st Filter CSV (e.g. `entropy_features_by_window.csv`) or a `.txt` file containing passing window indices. If omitted, all `.png` images in `--image-dir` are processed. |
+| `-f`, `--filter-source` | **Filter Source** | *(Optional)* Path to the 1st Filter CSV generated by `extract_features.py` (e.g. `entropy_features_by_window.csv`) or a `.txt` file containing passing window indices. If omitted, all `.png` images in `--image-dir` are processed. |
 | `-d`, `--duplicates-file`| **Duplicates List** | *(Optional)* Path to a `.txt` file containing duplicate window IDs to exclude. |
 | `-s`, `--sts-path` | **NIST STS Path** | Folder containing the compiled `assess` binary and `templates/` folder. |
 | `-e`, `--ea-path` | **SP 800-90B Path** | Path to the compiled `ea_non_iid` or `ea_non_iid_native` executable. |
@@ -76,7 +137,7 @@ python ddr_entropy_gen_method.py [arguments]
 
 ---
 
-## 4. Execution Modes (Default vs. Full Dataset)
+## 5. Execution Modes (Default vs. Full Dataset)
 
 Running full NIST SP 800-22 and NIST SP 800-90B evaluation suites over very large image datasets requires significant computational time. To provide flexibility, the pipeline supports two execution modes:
 
@@ -90,21 +151,31 @@ Running full NIST SP 800-22 and NIST SP 800-90B evaluation suites over very larg
 
 ---
 
-## 5. Usage Example
-To run the fast evaluation mode on ZYNQ 1024x1024:
+## 6. End-to-End Usage Examples
+
+### 1. Extract Statistical Features from Raw Windows:
+```bash
+python extract_features.py \
+  -i "path/to/raw_images/zynq/1024x1024" \
+  -o "zynq_1024_features.csv"
+```
+
+### 2. Run Fast Benchmark Evaluation:
 ```bash
 python ddr_entropy_gen_method.py \
-  -i "path/to/Filtreden_Gecen_Gorseller/zynq/1024x1024" \
+  -i "path/to/raw_images/zynq/1024x1024" \
+  -f "zynq_1024_features.csv" \
   -s "tools/sts_dir/sts" \
   -e "tools/ea_dir/cpp/ea_non_iid" \
   -n 5 \
   -o "zynq_1024_fast_results.xlsx"
 ```
 
-To run exhaustive evaluation on all images in the directory:
+### 3. Run Exhaustive Full-Dataset Evaluation:
 ```bash
 python ddr_entropy_gen_method.py \
-  -i "path/to/Filtreden_Gecen_Gorseller/zynq/1024x1024" \
+  -i "path/to/raw_images/zynq/1024x1024" \
+  -f "zynq_1024_features.csv" \
   -s "tools/sts_dir/sts" \
   -e "tools/ea_dir/cpp/ea_non_iid" \
   -n 5 \
@@ -114,7 +185,7 @@ python ddr_entropy_gen_method.py \
 
 ---
 
-## 6. Output Excel Formatting
+## 7. Output Excel Formatting
 The script automatically detects the image resolution (e.g., `1024x1024`) and creates a sheet named `{res}x{res}` inside the Excel file. If the file already exists, it appends/overwrites only that sheet, allowing multiple resolutions to be combined into a single file.
 
 For each iteration, the sheet contains:
