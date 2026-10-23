@@ -160,7 +160,7 @@ python extract_features.py \
   -o "zynq_1024_features.csv"
 ```
 
-### 2. Run Fast Benchmark Evaluation:
+### 2. Run Fast Evaluation:
 ```bash
 python ddr_entropy_gen_method.py \
   -i "path/to/raw_images/zynq/1024x1024" \
