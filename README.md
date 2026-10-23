@@ -19,7 +19,7 @@ The framework operates in a streamlined two-step workflow:
   STEP 1: extract_features.py ────────► Computes 7 statistical randomness metrics per window
                  │
                  ▼
-     entropy_features_by_window.csv   (Input table for the 1st filter stage)
+     entropy_features_by_window.csv   (Input table for the filtering stage)
                  │
                  ▼
   STEP 2: ddr_entropy_gen_method.py ──► -f entropy_features_by_window.csv
