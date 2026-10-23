@@ -1,0 +1,13 @@
+# Duplicate window IDs for RP5 128x128 (12 duplicate images excluded to match Table III)
+80156
+192280
+192282
+194274
+194282
+194288
+194297
+194300
+427765
+427767
+427770
+427773
